@@ -84,6 +84,16 @@ std::mutex m_recurring_mutex;
 std::vector<std::function<void()>> m_recurring_functions;
 double m_last_iteration = 0.f;
 
+void run_recurring_functions() {
+    double elapsed = glfwGetTime() - m_last_iteration;
+    if (elapsed > 1.0f) {
+        m_last_iteration = glfwGetTime();
+        std::lock_guard<std::mutex> recurring_guard(m_recurring_mutex);
+        for (auto &f : m_recurring_functions)
+            f();
+    }
+}
+
 void mainloop(float refresh) {
     if (mainloop_active)
         throw std::runtime_error("Main loop is already running!");
@@ -107,15 +117,8 @@ void mainloop(float refresh) {
             m_async_functions.clear();
         }
 
-        /* Run recurring functions */ {
-            double elapsed = glfwGetTime() - m_last_iteration;
-            if (elapsed > 1.0f) {
-                m_last_iteration = glfwGetTime();
-                std::lock_guard<std::mutex> recurring_guard(m_recurring_mutex);
-                for (auto &f : m_recurring_functions)
-                    f();
-            }
-        }
+        /* Run recurring functions */
+        run_recurring_functions();
 
         for (auto kv : __nanogui_screens) {
             Screen *screen = kv.second;
@@ -180,6 +183,9 @@ void mainloop(float refresh) {
                     if (!mainloop_active)
                         return;
                     std::this_thread::sleep_for(quantum);
+                    /* Run recurring functions */
+                    run_recurring_functions();
+                    /* Redraw */
                     for (auto kv : __nanogui_screens) {
                         if (kv.second->tooltip_fade_in_progress())
                             kv.second->redraw();
