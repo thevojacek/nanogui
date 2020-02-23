@@ -72,6 +72,10 @@ void init() {
 
 static bool mainloop_active = false;
 
+#if defined(__APPLE__)
+    static double last_redraw = 0.f;
+#endif
+
 #if defined(EMSCRIPTEN)
 static double emscripten_last = 0;
 static float emscripten_refresh = 0;
@@ -176,7 +180,9 @@ void mainloop(float refresh) {
     /* If there are no mouse/keyboard events, try to refresh the
        view roughly every 50 ms (default); this is to support animations
        such as progress bars while keeping the system load
-       reasonably low */
+       reasonably low. Refresh on macOS every second anyways due to macOS
+       limitation of UI update being redrawn only from main thread.
+       */
     refresh_thread = std::thread(
         [quantum, quantum_count]() {
             while (true) {
@@ -188,8 +194,17 @@ void mainloop(float refresh) {
                     run_recurring_functions();
                     /* Redraw */
                     for (auto kv : __nanogui_screens) {
-                        if (kv.second->tooltip_fade_in_progress())
+#if defined(__APPLE__)
+                        /* Redraw every 1 second on macOS anyways */
+                        if (kv.second->tooltip_fade_in_progress() || (glfwGetTime() - last_redraw) > 1.f) {
                             kv.second->redraw();
+                            last_redraw = glfwGetTime();
+                        }
+#else
+                        if (kv.second->tooltip_fade_in_progress() {
+                            kv.second->redraw();
+                        }
+#endif
                     }
                 }
                 for (auto kv : __nanogui_screens)
